@@ -37,7 +37,50 @@ app.post("/register", async (req, res) => {
     let data = "";
     upRes.on("data", (chunk) => (data += chunk));
     upRes.on("end", () => {
-      res.status(upRes.statusCode).set("Content-Type", "application/json").send(data || "{}");
+      if (upRes.statusCode !== 200) {
+        return res.status(upRes.statusCode).set("Content-Type", "application/json").send(data || "{}");
+      }
+
+      let created;
+      try { created = JSON.parse(data); } catch (e) {
+        return res.status(502).json({ error: "Invalid JSON from upstream" });
+      }
+
+      const userId = created.users && created.users[0] && created.users[0].id;
+      if (!userId) {
+        return res.json(created);
+      }
+
+      const encodedUsername = encodeURIComponent(username);
+      const getOptions = {
+        hostname: "api.extremecloudiq.com",
+        path: `/endusers?page=1&limit=10&usernames=${encodedUsername}`,
+        method: "GET",
+        headers: { "Authorization": "Bearer " + BEARER_TOKEN }
+      };
+
+      const getReq = https.request(getOptions, (getRes) => {
+        let userData = "";
+        getRes.on("data", (chunk) => (userData += chunk));
+        getRes.on("end", () => {
+          console.log("Enduser response:", userData);
+          let userDetail;
+          try { userDetail = JSON.parse(userData); } catch (e) { userDetail = {}; }
+          const enduser = userDetail.data && userDetail.data[0];
+          created.users[0].password = enduser
+            ? (enduser.password || enduser.ppsk || enduser.passphrase || enduser.user_password || enduser.key || null)
+            : null;
+          console.log("Enduser fields:", enduser ? Object.keys(enduser) : "none");
+          res.json(created);
+        });
+      });
+
+      getReq.on("error", (err) => {
+        console.error("GET enduser error:", err.message);
+        res.json(created);
+      });
+
+      getReq.end();
     });
   });
 
