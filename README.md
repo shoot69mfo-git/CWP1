@@ -1,76 +1,73 @@
-// routes/register.js
-const express = require('express');
-const { body, validationResult } = require('express-validator');
-const { registerUser } = require('./xiq');
-const logger = require('../middleware/logger');
+# Captive Portal — Setup & Deployment
 
-const router = express.Router();
+## Files
 
-// ── Input validation rules ─────────────────────────────────────────────────
-const validateRegistration = [
-  body('name')
-    .trim()
-    .isLength({ min: 2, max: 100 })
-    .withMessage('Name must be 2–100 characters.')
-    .escape(),
+```
+project/
+├── proxy.js          ← Express proxy server
+├── package.json      ← Node dependencies
+├── railway.toml      ← Railway deployment config
+├── public/
+│   └── index.html    ← Splash page (served by the proxy)
+└── README.md
+```
 
-  body('email')
-    .trim()
-    .isEmail()
-    .withMessage('A valid email address is required.')
-    .normalizeEmail(),
+## How it works
 
-  body('mobile')
-    .trim()
-    .matches(/^[\d\s\+\-\(\)]{7,20}$/)
-    .withMessage('Mobile number must be 7–20 characters (digits, spaces, +, -, () allowed).')
-];
+The browser loads `index.html` from the Express server. When the user
+submits the form, the page POSTs to `/register` on the same origin.
+The proxy forwards the request to ExtremeCloud with the Bearer token
+attached server-side — the token is never exposed to the browser.
 
-// ── POST /api/wifi-register ────────────────────────────────────────────────
-router.post('/', validateRegistration, async (req, res) => {
-  // Return validation errors before hitting XIQ
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(422).json({
-      success: false,
-      errors: errors.array().map(e => e.msg)
-    });
-  }
+---
 
-  const { name, email, mobile } = req.body;
+## Deploy to Railway
 
-  // Omit PII from logs; log only a partial email for traceability
-  const safeEmail = email.replace(/(?<=.).(?=[^@]*@)/g, '*');
-  logger.info('Registration attempt', { name, email: safeEmail, ip: req.ip });
+### 1. Push your files to a GitHub repo
 
-  try {
-    const result = await registerUser({ name, email, mobile });
+```
+captive-portal/
+├── proxy.js
+├── package.json
+├── railway.toml
+└── public/
+    └── index.html
+```
 
-    logger.info('Registration success', { name, email: safeEmail });
+### 2. Create a new Railway project
 
-    return res.status(200).json({
-      success: true,
-      data: result
-    });
+- Go to https://railway.app and click **New Project**
+- Choose **Deploy from GitHub repo** and select your repo
+- Railway auto-detects Node.js via nixpacks — no extra config needed
 
-  } catch (err) {
-    logger.error('Registration failed', {
-      name,
-      email: safeEmail,
-      message: err.message,
-      xiqStatus: err.status
-    });
+### 3. Set the environment variable
 
-    // Don't leak internal XIQ error details to the client in production
-    const clientMessage = process.env.NODE_ENV === 'production'
-      ? 'Registration could not be completed. Please try again.'
-      : err.message;
+In your Railway project → **Variables** tab, add:
 
-    return res.status(502).json({
-      success: false,
-      error: clientMessage
-    });
-  }
-});
+| Name           | Value                  |
+|----------------|------------------------|
+| `BEARER_TOKEN` | your ExtremeCloud token |
 
-module.exports = router;
+Railway automatically injects `PORT` — the app reads it already.
+
+### 4. Deploy
+
+Railway deploys automatically on every push to your main branch.
+Your portal will be live at the Railway-provided `.up.railway.app` URL.
+
+---
+
+## Local development
+
+```bash
+npm install
+BEARER_TOKEN=your_actual_token node proxy.js
+# → http://localhost:3000
+```
+
+## Environment variables
+
+| Variable       | Default                  | Description                   |
+|----------------|--------------------------|-------------------------------|
+| `BEARER_TOKEN` | `YOUR_BEARER_TOKEN_HERE` | ExtremeCloud API bearer token  |
+| `PORT`         | `3000`                   | Injected automatically by Railway |
