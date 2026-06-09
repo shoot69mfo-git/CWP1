@@ -4,7 +4,7 @@ const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const BEARER_TOKEN = process.env.BEARER_TOKEN || "YOUR_BEARER_TOKEN_HERE";
+const BEARER_TOKEN = process.env.BEARER_TOKEN || "extr_sk_v1.3L7Rf-2_oqQzWmeRFkTA_yq0Lp_Fe-ji.f1ffbd89018adffd";
 const UPSTREAM = "https://api.extremecloudiq.com/pcgs/key-based/network-policy-392173463955102/users?async=false";
 
 app.use(express.json());
