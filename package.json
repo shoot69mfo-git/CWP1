@@ -1,0 +1,97 @@
+// routes/xiq.js  — all XIQ API calls live here; token never leaves this file
+const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
+const logger = require('../middleware/logger');
+
+const BASE     = process.env.XIQ_BASE_URL    || 'https://api.extremecloudiq.com';
+const TOKEN    = process.env.XIQ_ACCESS_TOKEN;
+const POLICY_ID   = process.env.NETWORK_POLICY_ID;
+const GROUP_NAME  = process.env.USER_GROUP_NAME;
+const PPSK_SSID   = process.env.PPSK_PCG_SSID;
+
+// ── Generic request helper ─────────────────────────────────────────────────
+async function xiq(method, path, body) {
+  const url = `${BASE}${path}`;
+  const opts = {
+    method,
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${TOKEN}`,
+      'Accept':        'application/json'
+    },
+    // 10-second timeout so a slow XIQ doesn't hang the portal
+    signal: AbortSignal.timeout(10_000)
+  };
+  if (body) opts.body = JSON.stringify(body);
+
+  logger.debug(`XIQ → ${method} ${url}`, { body });
+
+  const res = await fetch(url, opts);
+  const text = await res.text();
+
+  let json;
+  try { json = JSON.parse(text); } catch { json = { raw: text }; }
+
+  logger.debug(`XIQ ← ${res.status} ${url}`, { json });
+
+  if (!res.ok) {
+    const msg = json?.message || json?.error || text || `HTTP ${res.status}`;
+    throw Object.assign(new Error(`XIQ ${method} ${path}: ${msg}`), { status: res.status, xiq: json });
+  }
+
+  return json;
+}
+
+// ── The four registration steps ───────────────────────────────────────────
+async function registerUser({ name, email, mobile }) {
+  // STEP 1 — Add user to PPSK/PCG network policy
+  await xiq(
+    'POST',
+    `/pcgs/key-based/network-policy-${POLICY_ID}/users`,
+    {
+      name,
+      email,
+      user_group_name: GROUP_NAME
+    }
+  );
+
+  // STEP 2 — Retrieve the new user's ID
+  const listData = await xiq(
+    'GET',
+    `/endusers?page=1&limit=10&usernames=${encodeURIComponent(name)}`
+  );
+
+  const user = listData?.data?.[0]
+            || listData?.users?.[0]
+            || (Array.isArray(listData) ? listData[0] : null);
+
+  if (!user) throw new Error('User not found in XIQ after creation.');
+
+  const userId = user.id || user.user_id;
+  if (!userId) throw new Error('Could not resolve user ID from XIQ response.');
+
+  // STEP 3 — Patch in the mobile number
+  await xiq(
+    'PUT',
+    `/endusers/${userId}`,
+    { mobile_number: mobile }
+  );
+
+  // STEP 4 — Fetch the full record (includes PPSK password)
+  const fullUser = await xiq('GET', `/endusers/${userId}`);
+
+  const ppsk = fullUser.ppsk
+            || fullUser.ppsk_password
+            || fullUser.password
+            || fullUser.key
+            || null;
+
+  return {
+    name:   fullUser.name   || name,
+    email:  fullUser.email  || email,
+    mobile: fullUser.mobile_number || mobile,
+    ppsk,
+    ssid:   PPSK_SSID
+  };
+}
+
+module.exports = { registerUser };
