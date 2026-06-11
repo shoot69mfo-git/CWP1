@@ -468,6 +468,10 @@
         <span class="detail-label">Email</span>
         <span class="detail-value" id="success-email"></span>
       </div>
+      <div class="detail-row" id="success-mobile-row" style="display:none;">
+        <span class="detail-label">Mobile Number</span>
+        <span class="detail-value" id="success-mobile"></span>
+      </div>
       <div class="detail-row">
         <span class="detail-label">SSID</span>
         <span class="detail-value"><span class="ppsk-value">MyResNet-PPSK-PCG</span></span>
@@ -545,6 +549,10 @@
 
       document.getElementById("success-name").textContent = username;
       document.getElementById("success-email").textContent = email;
+      if (mobile) {
+        document.getElementById("success-mobile").textContent = mobile;
+        document.getElementById("success-mobile-row").style.display = "flex";
+      }
       document.getElementById("success-ppsk").textContent = ppsk;
 
       const ssid = "MyResNet-PPSK-PCG";
