@@ -428,17 +428,22 @@
     </div>
 
     <div class="field">
-      <label for="email">Email address</label>
+      <label for="email">Email Address</label>
       <input type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email" />
     </div>
 
     <div class="field">
-      <label for="usergroup">User group</label>
+      <label for="mobile">Mobile Number <span style="font-weight:400; color:#bbb;">(optional)</span></label>
+      <input type="tel" id="mobile" name="mobile" placeholder="+1 555 000 0000" autocomplete="tel" />
+    </div>
+
+    <div class="field">
+      <label for="usergroup">User Group</label>
       <input type="text" id="usergroup" name="usergroup" value="AlphaPhi-PPSK-PCG" />
     </div>
 
     <button class="btn" id="submit-btn" onclick="handleSubmit()">
-      <span id="btn-label">Get access</span>
+      <span id="btn-label">Get Access</span>
       <div class="spinner" id="spinner"></div>
     </button>
 
@@ -504,6 +509,7 @@
   async function handleSubmit() {
     const username = document.getElementById("username").value.trim();
     const email = document.getElementById("email").value.trim();
+    const mobile = document.getElementById("mobile").value.trim();
     const usergroup = document.getElementById("usergroup").value.trim();
     const errorEl = document.getElementById("error-msg");
     const btn = document.getElementById("submit-btn");
@@ -525,7 +531,7 @@
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ username, email, usergroup })
+        body: JSON.stringify({ username, email, mobile, usergroup })
       });
 
       if (!response.ok) {
